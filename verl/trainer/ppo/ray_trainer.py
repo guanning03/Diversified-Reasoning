@@ -263,6 +263,7 @@ def compute_advantage(
             response_mask=grpo_calculation_mask,
             index=data.non_tensor_batch["uid"],
             norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
+            config=config,
             old_log_probs=data.batch["old_log_probs"]
         )
         data.batch["advantages"] = advantages
@@ -1317,7 +1318,8 @@ class RayPPOTrainer:
                         
                         if self.config.algorithm.adv_estimator in [AdvantageEstimator.PKPO, 
                                                                    AdvantageEstimator.RLOO, 
-                                                                   AdvantageEstimator.GRPKPO]:
+                                                                   AdvantageEstimator.GRPKPO,
+                                                                   AdvantageEstimator.GRPO]:
                             for key in batch.batch.keys():
                                 if key.startswith("pass@"):
                                     metrics[f"objectives(train)/{key}"] = torch.mean(batch.batch[key])
