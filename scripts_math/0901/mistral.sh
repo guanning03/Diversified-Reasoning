@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1      # 每个节点的任务数
 #SBATCH --cpus-per-task=16       # 每个任务的 CPU 核心数
 #SBATCH --gres=gpu:4             # 需要 1 个 GPU
-#SBATCH --time=48:00:00          # 最大运行时间
+#SBATCH --time=24:00:00          # 最大运行时间
 #SBATCH --mem=512G               # 内存大小
 #SBATCH --output=logs/%j.log     # 输出日志路径
 #SBATCH --partition=ghx4         # 指定分区
@@ -36,7 +36,7 @@ SAVE_AND_TEST_INTERVAL=25
 
 ADVANTAGE_ESTIMATOR=grpo
 CORRECT_SAMPLE_LOG_PROB_COEF=0
-INCORRECT_SAMPLE_LOG_PROB_COEF=0
+INCORRECT_SAMPLE_LOG_PROB_COEF=-0.002
 
 experiment_name=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED}
 
@@ -73,7 +73,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  actor_rollout_ref.actor.checkpoint.save_contents=[hf_model] \
  actor_rollout_ref.rollout.temperature=${TEMPERATURE} \
  actor_rollout_ref.rollout.top_k=-1 \
- actor_rollout_ref.rollout.top_p=0.99 \
+ actor_rollout_ref.rollout.top_p=1 \
  actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=${MICRO_BATCH_SIZE} \
  actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
  actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
@@ -103,8 +103,8 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  trainer.test_freq=${SAVE_AND_TEST_INTERVAL} \
  trainer.logger=[console,wandb] \
  trainer.val_before_train=True \
- trainer.project_name=experiments-0904 \
- trainer.default_local_dir=/work/nvme/bevr/gzeng/experiments-0904/${experiment_name} \
+ trainer.project_name=experiments-0909 \
+ trainer.default_local_dir=/work/nvme/bdtp/gzeng/experiments-0909/${experiment_name} \
  trainer.experiment_name=${experiment_name} \
  trainer.total_epochs=3 \
  ray_init.temp_dir=$HOME/ray_tmp
