@@ -37,7 +37,25 @@ ADVANTAGE_ESTIMATOR=grpo
 CORRECT_SAMPLE_LOG_PROB_COEF=0
 INCORRECT_SAMPLE_LOG_PROB_COEF=0
 
+# HuggingFace online model upload settings
+# 使用说明：
+# 1. 设置HF_USERNAME为你的HuggingFace用户名/组织名
+# 2. 设置ENABLE_ONLINE_HF_UPLOAD=true来启用在线上传
+# 3. 确保已经登录HuggingFace CLI: huggingface-cli login
+# 4. 模型将被上传到: https://huggingface.co/{HF_USERNAME}/experiments-0901/{experiment_name}/global_step_{number}/
+HF_USERNAME=""
+ENABLE_ONLINE_HF_UPLOAD=false
+
 echo "job is starting on `hostname`"
+
+# 根据设置决定checkpoint save_contents
+if [ "$ENABLE_ONLINE_HF_UPLOAD" = true ] && [ -n "$HF_USERNAME" ]; then
+    SAVE_CONTENTS="[model,optimizer,extra,hf_model,online_hf_model]"
+    echo "启用HuggingFace在线模型上传，用户名: $HF_USERNAME"
+else
+    SAVE_CONTENTS="[model,optimizer,extra]"
+    echo "未启用HuggingFace在线模型上传"
+fi
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  data.train_files=[$HOME/verl-data/math/train.parquet,$HOME/verl-data/dapo14k/train.parquet] \
@@ -67,7 +85,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  actor_rollout_ref.actor.kl_loss_coef=0.000 \
  actor_rollout_ref.actor.kl_loss_type=low_var_kl \
  actor_rollout_ref.actor.entropy_coeff=0 \
- actor_rollout_ref.actor.checkpoint.save_contents=[hf_model] \
+ actor_rollout_ref.actor.checkpoint.save_contents=${SAVE_CONTENTS} \
  actor_rollout_ref.rollout.temperature=${TEMPERATURE} \
  actor_rollout_ref.rollout.top_k=-1 \
  actor_rollout_ref.rollout.top_p=1.00 \
@@ -102,5 +120,6 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  trainer.val_before_train=True \
  trainer.project_name=experiments-0901 \
  trainer.experiment_name=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED} \
+ trainer.online_hf_name=${HF_USERNAME} \
  trainer.total_epochs=3 \
  ray_init.temp_dir=$HOME/ray_tmp

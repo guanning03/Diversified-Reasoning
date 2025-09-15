@@ -1112,6 +1112,10 @@ trainer:
   # Maximum number of critic checkpoints to keep
   max_critic_ckpt_to_keep: null
 
+  # HuggingFace online model upload settings
+  online_hf_name: null  # HuggingFace username/organization name for model upload
+  online_hf_repo_name: ${trainer.project_name}  # HuggingFace repository name, defaults to project_name
+
   # Timeout (in seconds) for Ray worker to wait for registration
   ray_wait_register_center_timeout: 300
 

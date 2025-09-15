@@ -118,6 +118,9 @@ class MegatronCheckpointManager(BaseCheckpointManager):
         use_checkpoint_opt_param_scheduler: bool = False,
         use_dist_checkpointing: bool = True,
         bridge=None,
+        online_hf_name: str = None,
+        online_hf_repo_name: str = None,
+        experiment_name: str = None,
         **kwargs,
     ):
         super().__init__(
@@ -126,6 +129,9 @@ class MegatronCheckpointManager(BaseCheckpointManager):
             lr_scheduler=optimizer_scheduler,
             processing_class=processing_class,
             checkpoint_config=checkpoint_config,
+            online_hf_name=online_hf_name,
+            online_hf_repo_name=online_hf_repo_name,
+            experiment_name=experiment_name,
         )
         self.arch = arch
         self.config = config
@@ -489,6 +495,9 @@ class MegatronCheckpointManager(BaseCheckpointManager):
                     logger=logger,
                     log_only_rank_0=True,
                 )
+                
+                # Upload to HuggingFace Hub if requested
+                self.upload_to_huggingface(hf_model_ckpt_path, global_step)
 
                 if hdfs_path is not None:
                     log_with_rank(

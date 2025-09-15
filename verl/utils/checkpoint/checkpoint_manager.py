@@ -48,6 +48,9 @@ class BaseCheckpointManager:
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler = None,
         processing_class: Union[PreTrainedTokenizer, ProcessorMixin] = None,
         checkpoint_config: DictConfig = None,
+        online_hf_name: str = None,
+        online_hf_repo_name: str = None,
+        experiment_name: str = None,
     ):
         self.checkpoint_config = checkpoint_config
         checkpoint_load_contents = checkpoint_config.get("load_contents", None) if checkpoint_config else None
@@ -56,6 +59,7 @@ class BaseCheckpointManager:
             checkpoint_load_contents = ["model", "optimizer", "extra"]
         if checkpoint_save_contents is None:
             checkpoint_save_contents = ["model", "optimizer", "extra"]
+        
         self.previous_global_step = None
         self.previous_saved_paths = []
 
@@ -65,9 +69,17 @@ class BaseCheckpointManager:
         self.processing_class = processing_class
         self.checkpoint_load_contents = checkpoint_load_contents
         self.checkpoint_save_contents = checkpoint_save_contents
+        
+        # HuggingFace online model upload settings
+        self.online_hf_name = online_hf_name
+        self.online_hf_repo_name = online_hf_repo_name
+        self.experiment_name = experiment_name
 
         self.rank = torch.distributed.get_rank()
         self.world_size = torch.distributed.get_world_size()
+        
+        # Validate online HuggingFace model requirements
+        self._validate_online_hf_model_config()
 
     @property
     def should_save_model(self) -> bool:
@@ -97,6 +109,14 @@ class BaseCheckpointManager:
         model and saved.
         """
         return "hf_model" in self.checkpoint_save_contents
+    
+    @property
+    def should_save_online_hf_model(self) -> bool:
+        """
+        Returns True if 'online_hf_model' is in checkpoint_save_contents, indicating the model should be uploaded
+        to HuggingFace Hub.
+        """
+        return "online_hf_model" in self.checkpoint_save_contents
 
     @property
     def should_load_model(self) -> bool:
@@ -163,6 +183,75 @@ class BaseCheckpointManager:
 
         if get_device_name() != "cpu":
             get_torch_device().set_rng_state(rng_state[get_device_name()])
+
+    def _validate_online_hf_model_config(self):
+        """
+        Validate configuration requirements for online HuggingFace model upload.
+        
+        Requirements:
+        1. If 'online_hf_model' is in save_contents, then 'hf_model' must also be present
+        2. If 'online_hf_model' is in save_contents, online_hf_name must be provided
+        3. If 'online_hf_model' is in save_contents, online_hf_repo_name must be provided
+        """
+        if self.should_save_online_hf_model:
+            if not self.should_save_hf_model:
+                raise ValueError(
+                    "When using 'online_hf_model', 'hf_model' must also be included in save_contents. "
+                    "Current save_contents: {}".format(self.checkpoint_save_contents)
+                )
+            
+            if not self.online_hf_name:
+                raise ValueError(
+                    "When using 'online_hf_model', online_hf_name (HuggingFace username/organization) must be provided."
+                )
+            
+            if not self.online_hf_repo_name:
+                raise ValueError(
+                    "When using 'online_hf_model', online_hf_repo_name (HuggingFace repository name) must be provided."
+                )
+    
+    def upload_to_huggingface(self, hf_model_path: str, global_step: int):
+        """
+        Upload the HuggingFace model to HuggingFace Hub.
+        
+        Args:
+            hf_model_path: Local path to the HuggingFace model
+            global_step: Current training step
+        """
+        if not self.should_save_online_hf_model:
+            return
+        
+        try:
+            from huggingface_hub import HfApi
+            
+            api = HfApi()
+            repo_id = f"{self.online_hf_name}/{self.online_hf_repo_name}"
+            
+            # Create repository if it doesn't exist
+            api.create_repo(repo_id=repo_id, exist_ok=True, private=True)
+            
+            # Upload to specific path structure: experiment_name/global_step_{number}
+            path_in_repo = f"{self.experiment_name}/global_step_{global_step}/"
+            
+            print(f"Uploading HuggingFace model to {repo_id}/{path_in_repo}")
+            
+            api.upload_folder(
+                folder_path=hf_model_path,
+                repo_id=repo_id,
+                path_in_repo=path_in_repo,
+                repo_type="model"
+            )
+            
+            print(f"Successfully uploaded HuggingFace model to https://huggingface.co/{repo_id}/tree/main/{path_in_repo}")
+            
+        except ImportError:
+            raise ImportError(
+                "huggingface_hub is required for online HuggingFace model upload. "
+                "Please install it with: pip install huggingface_hub"
+            )
+        except Exception as e:
+            print(f"Failed to upload HuggingFace model: {e}")
+            # Don't raise exception to avoid breaking training
 
 
 def find_latest_ckpt_path(path, directory_format="global_step_{}"):

@@ -472,7 +472,7 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
 
         if self._is_actor:
             self.flops_counter = FlopsCounter(self.actor_model_config)
-            self.checkpoint_mananager = MegatronCheckpointManager(
+            self.checkpoint_manager = MegatronCheckpointManager(
                 config=self.config,
                 checkpoint_config=self.config.actor.checkpoint,
                 model_config=self.actor_model_config,
@@ -490,6 +490,9 @@ class ActorRolloutRefWorker(MegatronWorker, DistProfilerExtension):
                 use_checkpoint_opt_param_scheduler=self.config.actor.optim.use_checkpoint_opt_param_scheduler,
                 bridge=self.bridge,
                 use_dist_checkpointing=self.config.actor.megatron.use_dist_checkpointing,
+                online_hf_name=self.config.get("online_hf_name"),
+                online_hf_repo_name=self.config.get("online_hf_repo_name"),
+                experiment_name=self.config.get("experiment_name"),
             )
         get_torch_device().empty_cache()
         log_gpu_memory_usage("After init_model finish", logger=logger)
@@ -904,6 +907,9 @@ class CriticWorker(MegatronWorker, DistProfilerExtension):
             use_checkpoint_opt_param_scheduler=self.config.optim.use_checkpoint_opt_param_scheduler,
             bridge=self.bridge,
             use_dist_checkpointing=self.config.megatron.use_dist_checkpointing,
+            online_hf_name=self.config.get("online_hf_name"),
+            online_hf_repo_name=self.config.get("online_hf_repo_name"),
+            experiment_name=self.config.get("experiment_name"),
         )
 
     @register(dispatch_mode=Dispatch.MEGATRON_COMPUTE_PROTO)

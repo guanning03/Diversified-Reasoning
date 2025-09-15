@@ -572,6 +572,36 @@ class RayPPOTrainer:
                 "due to no role-playing support"
             )
 
+        # Validate online HuggingFace model upload settings
+        actor_save_contents = config.actor_rollout_ref.actor.checkpoint.get("save_contents", [])
+        if "online_hf_model" in actor_save_contents:
+            # online_hf_model requires hf_model to also be present
+            assert "hf_model" in actor_save_contents, (
+                "When using 'online_hf_model' in actor checkpoint save_contents, "
+                "'hf_model' must also be included. Current save_contents: {}".format(actor_save_contents)
+            )
+            
+            # online_hf_name must be provided
+            assert config.trainer.get("online_hf_name") is not None, (
+                "When using 'online_hf_model', trainer.online_hf_name (HuggingFace username/organization) must be provided."
+            )
+            
+            # online_hf_repo_name must be provided (should default to project_name)
+            assert config.trainer.get("online_hf_repo_name") is not None, (
+                "When using 'online_hf_model', trainer.online_hf_repo_name (HuggingFace repository name) must be provided."
+            )
+            
+            # max_actor_ckpt_to_keep must be at least 1
+            max_actor_ckpt = config.trainer.get("max_actor_ckpt_to_keep")
+            if max_actor_ckpt is not None and max_actor_ckpt < 1:
+                raise ValueError(
+                    "When using 'online_hf_model', max_actor_ckpt_to_keep must be at least 1 to ensure "
+                    "at least one checkpoint is saved before uploading. Current value: {}".format(max_actor_ckpt)
+                )
+            
+            print(f"[validate_config] Online HuggingFace model upload configured: "
+                  f"{config.trainer.online_hf_name}/{config.trainer.online_hf_repo_name}")
+
         print("[validate_config] All configuration checks passed successfully!")
 
     def _create_dataloader(self, train_dataset, val_dataset, collate_fn, train_sampler: Optional[Sampler]):
@@ -842,9 +872,16 @@ class RayPPOTrainer:
         # create actor and rollout
         if self.hybrid_engine:
             resource_pool = self.resource_pool_manager.get_resource_pool(Role.ActorRollout)
+            # Pass online HF settings to worker config
+            actor_rollout_config = OmegaConf.create(OmegaConf.to_container(self.config.actor_rollout_ref, resolve=True))
+            with open_dict(actor_rollout_config):
+                actor_rollout_config.online_hf_name = self.config.trainer.get("online_hf_name")
+                actor_rollout_config.online_hf_repo_name = self.config.trainer.get("online_hf_repo_name")
+                actor_rollout_config.experiment_name = self.config.trainer.get("experiment_name")
+            
             actor_rollout_cls = RayClassWithInitArgs(
                 cls=self.role_worker_mapping[Role.ActorRollout],
-                config=self.config.actor_rollout_ref,
+                config=actor_rollout_config,
                 role="actor_rollout",
             )
             self.resource_pool_to_cls[resource_pool]["actor_rollout"] = actor_rollout_cls
@@ -854,7 +891,14 @@ class RayPPOTrainer:
         # create critic
         if self.use_critic:
             resource_pool = self.resource_pool_manager.get_resource_pool(Role.Critic)
-            critic_cls = RayClassWithInitArgs(cls=self.role_worker_mapping[Role.Critic], config=self.config.critic)
+            # Pass online HF settings to critic config as well for consistency
+            critic_config = OmegaConf.create(OmegaConf.to_container(self.config.critic, resolve=True))
+            with open_dict(critic_config):
+                critic_config.online_hf_name = self.config.trainer.get("online_hf_name")
+                critic_config.online_hf_repo_name = self.config.trainer.get("online_hf_repo_name")
+                critic_config.experiment_name = self.config.trainer.get("experiment_name")
+            
+            critic_cls = RayClassWithInitArgs(cls=self.role_worker_mapping[Role.Critic], config=critic_config)
             self.resource_pool_to_cls[resource_pool]["critic"] = critic_cls
 
         # create reference policy if needed

@@ -660,6 +660,9 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 lr_scheduler=self.actor_lr_scheduler,
                 processing_class=self.processor if self.processor is not None else self.tokenizer,
                 checkpoint_config=self.config.actor.checkpoint,
+                online_hf_name=self.config.get("online_hf_name"),
+                online_hf_repo_name=self.config.get("online_hf_repo_name"),
+                experiment_name=self.config.get("experiment_name"),
             )
 
         if not self._is_actor and self._is_rollout:
@@ -673,6 +676,9 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 lr_scheduler=None,
                 processing_class=self.processor if self.processor is not None else self.tokenizer,
                 checkpoint_config=checkpoint_contents,
+                online_hf_name=self.config.get("online_hf_name"),
+                online_hf_repo_name=self.config.get("online_hf_repo_name"),
+                experiment_name=self.config.get("experiment_name"),
             )
 
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
@@ -1207,6 +1213,9 @@ class CriticWorker(Worker, DistProfilerExtension):
             lr_scheduler=self.critic_lr_scheduler,
             processing_class=self.processor if self.processor is not None else self.tokenizer,
             checkpoint_config=self.config.checkpoint,
+            online_hf_name=self.config.get("online_hf_name"),
+            online_hf_repo_name=self.config.get("online_hf_repo_name"),
+            experiment_name=self.config.get("experiment_name"),
         )
 
     @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
