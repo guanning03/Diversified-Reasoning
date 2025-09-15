@@ -24,3 +24,9 @@ python misc/download_model.py
 python examples/data_preprocess/standard.py
 bash scripts_math/example_qwen7b.sh
 ```
+
+## Useful slurm scripts for Babel
+
+```bash
+srun -p debug --gres=gpu:1 --time=02:00:00 --mem=512G --cpus-per-task=16 --pty bash
+```

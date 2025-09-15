@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import os
 
-model_name = "Qwen/Qwen2.5-Math-7B"
+model_name = "mistralai/Ministral-8B-Instruct-2410"
 
 # Create models directory if it doesn't exist
 CACHE = os.environ.get("CACHE", "~/.cache/")  # 默认值保留原路径

@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    data_source = "guanning-ai/mymaze-8x8"
+    data_source = "guanning-ai/mymaze-xl-6x6"
     
     if not args.local_dir:
         args.local_dir = os.path.join(os.environ["CACHE"], "verl-data", data_source.split("/")[-1])
