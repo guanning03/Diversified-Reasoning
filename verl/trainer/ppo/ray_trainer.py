@@ -1492,4 +1492,9 @@ class RayPPOTrainer:
                 if is_last_step:
                     pprint(f"Final validation metrics: {last_val_metrics}")
                     progress_bar.close()
+                    
+                    # Wait for any ongoing async uploads to complete
+                    from verl.utils.checkpoint.checkpoint_manager import BaseCheckpointManager
+                    BaseCheckpointManager.cleanup_upload_executor()
+                    
                     return

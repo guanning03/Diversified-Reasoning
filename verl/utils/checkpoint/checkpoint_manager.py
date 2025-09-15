@@ -15,6 +15,9 @@
 import os
 import random
 import shutil
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Union
 
 import numpy as np
@@ -40,6 +43,11 @@ class BaseCheckpointManager:
     - full lr_scheduler states
     - huggingface tokenizer and config for ckpt merge
     """
+    
+    # Class-level thread pool for async uploads
+    _upload_executor = None
+    _upload_lock = threading.Lock()
+    _active_uploads = set()  # Track active upload tasks
 
     def __init__(
         self,
@@ -80,6 +88,26 @@ class BaseCheckpointManager:
         
         # Validate online HuggingFace model requirements
         self._validate_online_hf_model_config()
+    
+    @classmethod
+    def _get_upload_executor(cls):
+        """Get or create the class-level thread pool executor for async uploads."""
+        with cls._upload_lock:
+            if cls._upload_executor is None:
+                # Use max 2 threads to avoid overwhelming network/API limits
+                cls._upload_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="HF_Upload")
+            return cls._upload_executor
+    
+    @classmethod
+    def cleanup_upload_executor(cls):
+        """Clean up the upload executor. Should be called at the end of training."""
+        with cls._upload_lock:
+            if cls._upload_executor is not None:
+                print("Waiting for ongoing HuggingFace uploads to complete...")
+                cls._upload_executor.shutdown(wait=True)
+                cls._upload_executor = None
+                cls._active_uploads.clear()
+                print("All HuggingFace uploads completed.")
 
     @property
     def should_save_model(self) -> bool:
@@ -210,9 +238,47 @@ class BaseCheckpointManager:
                     "When using 'online_hf_model', online_hf_repo_name (HuggingFace repository name) must be provided."
                 )
     
+    def _sync_upload_to_huggingface(self, hf_model_path: str, global_step: int, repo_id: str, path_in_repo: str):
+        """
+        Internal method for synchronous upload to HuggingFace Hub.
+        This method runs in a background thread.
+        """
+        upload_id = f"{repo_id}/{path_in_repo}"
+        try:
+            start_time = time.time()
+            print(f"[ASYNC] Starting upload: {upload_id}")
+            
+            from huggingface_hub import HfApi
+            
+            api = HfApi()
+            
+            # Create repository if it doesn't exist
+            api.create_repo(repo_id=repo_id, exist_ok=True, private=True)
+            
+            # Upload folder
+            api.upload_folder(
+                folder_path=hf_model_path,
+                repo_id=repo_id,
+                path_in_repo=path_in_repo,
+                repo_type="model"
+            )
+            
+            elapsed = time.time() - start_time
+            print(f"[ASYNC] ✅ Upload completed in {elapsed:.1f}s: https://huggingface.co/{repo_id}/tree/main/{path_in_repo}")
+            
+        except ImportError:
+            print(f"[ASYNC] ❌ Upload failed: huggingface_hub is required for online HuggingFace model upload")
+        except Exception as e:
+            print(f"[ASYNC] ❌ Upload failed for {upload_id}: {e}")
+        finally:
+            # Remove from active uploads
+            with self.__class__._upload_lock:
+                self.__class__._active_uploads.discard(upload_id)
+    
     def upload_to_huggingface(self, hf_model_path: str, global_step: int):
         """
-        Upload the HuggingFace model to HuggingFace Hub.
+        Asynchronously upload the HuggingFace model to HuggingFace Hub.
+        This method returns immediately and runs the upload in a background thread.
         
         Args:
             hf_model_path: Local path to the HuggingFace model
@@ -221,37 +287,28 @@ class BaseCheckpointManager:
         if not self.should_save_online_hf_model:
             return
         
-        try:
-            from huggingface_hub import HfApi
-            
-            api = HfApi()
-            repo_id = f"{self.online_hf_name}/{self.online_hf_repo_name}"
-            
-            # Create repository if it doesn't exist
-            api.create_repo(repo_id=repo_id, exist_ok=True, private=True)
-            
-            # Upload to specific path structure: experiment_name/global_step_{number}
-            path_in_repo = f"{self.experiment_name}/global_step_{global_step}/"
-            
-            print(f"Uploading HuggingFace model to {repo_id}/{path_in_repo}")
-            
-            api.upload_folder(
-                folder_path=hf_model_path,
-                repo_id=repo_id,
-                path_in_repo=path_in_repo,
-                repo_type="model"
-            )
-            
-            print(f"Successfully uploaded HuggingFace model to https://huggingface.co/{repo_id}/tree/main/{path_in_repo}")
-            
-        except ImportError:
-            raise ImportError(
-                "huggingface_hub is required for online HuggingFace model upload. "
-                "Please install it with: pip install huggingface_hub"
-            )
-        except Exception as e:
-            print(f"Failed to upload HuggingFace model: {e}")
-            # Don't raise exception to avoid breaking training
+        repo_id = f"{self.online_hf_name}/{self.online_hf_repo_name}"
+        path_in_repo = f"{self.experiment_name}/global_step_{global_step}/"
+        upload_id = f"{repo_id}/{path_in_repo}"
+        
+        # Check if this upload is already in progress
+        with self.__class__._upload_lock:
+            if upload_id in self.__class__._active_uploads:
+                print(f"[ASYNC] Upload already in progress: {upload_id}")
+                return
+            self.__class__._active_uploads.add(upload_id)
+        
+        # Submit async upload task
+        executor = self._get_upload_executor()
+        future = executor.submit(
+            self._sync_upload_to_huggingface, 
+            hf_model_path, 
+            global_step, 
+            repo_id, 
+            path_in_repo
+        )
+        
+        print(f"[ASYNC] Queued upload: {upload_id} (training continues...)")
 
 
 def find_latest_ckpt_path(path, directory_format="global_step_{}"):
