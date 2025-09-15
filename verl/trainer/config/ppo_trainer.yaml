@@ -1110,7 +1110,7 @@ trainer:
   max_actor_ckpt_to_keep: null
 
   # Maximum number of critic checkpoints to keep
-  max_critic_ckpt_to_keep: null
+  max_critic_ckpt_to_keep: 1
 
   # HuggingFace online model upload settings
   online_hf_name: null  # HuggingFace username/organization name for model upload
