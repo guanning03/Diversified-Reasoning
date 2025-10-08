@@ -134,3 +134,6 @@ core
 !results/**
 !.vscode/launch.json
 !verl/models
+
+*.whl
+*.whl.1
