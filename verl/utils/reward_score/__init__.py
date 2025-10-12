@@ -16,6 +16,9 @@
 from verl.utils.import_utils import deprecated
 from verl.utils.reward_score.maze import compute_score_maze, extract_answer_maze
 import re
+import concurrent.futures
+from math_verify.errors import TimeoutException
+import time
 
 def default_compute_score(
     data_source,
@@ -59,8 +62,12 @@ def default_compute_score(
          data_source.startswith("guanning-ai/mymaze"):
         res = compute_score_maze(extract_answer_maze(solution_str), ground_truth)
     elif data_source.startswith("guanning") or data_source == 'default':
-        from . import math_verify
-        res = math_verify.compute_score(solution_str, ground_truth)  
+        try:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(math_verify.compute_score, solution_str, ground_truth)
+                res = future.result(timeout=60)  # 超过60秒将抛出TimeoutError
+        except (TimeoutException, concurrent.futures.TimeoutError):
+            res = 0.0
     elif data_source == "openai/gsm8k":
         from . import math_verify
         res = math_verify.compute_score(solution_str, ground_truth)  
