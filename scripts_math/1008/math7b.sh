@@ -1,3 +1,18 @@
+__conda_setup="$('/root/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/root/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/root/miniconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/root/miniconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+
+conda init
+conda activate gai
+
 CURRENT_TIME=$(date +%Y%m%d_%H%M%S)
 
 # 创建logs目录（如果不存在）
@@ -6,6 +21,9 @@ mkdir -p logs
 # 设置日志文件路径
 LOG_FILE="logs/${CURRENT_TIME}.log"
 
+export CACHE=/root/cache/
+
+export HF_TOKEN=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
 export WANDB_API_KEY="256879fdda25bc1fb8ee4f0310e71615e92f75c9"
 export WANDB_MODE=online
 # export WANDB_ENTITY="YOUR_ENTITY"
@@ -27,13 +45,13 @@ ROLLOUT_SEED=0
 MICRO_BATCH_SIZE=4
 TEMPERATURE=0.7
 VAL_TEMPERATURE=0.7
-SAVE_AND_TEST_INTERVAL=25
+SAVE_AND_TEST_INTERVAL=50
 
 HF_USERNAME=guanning-ai
 
 ADVANTAGE_ESTIMATOR=grpo
-CORRECT_SAMPLE_LOG_PROB_COEF=-0.01
-INCORRECT_SAMPLE_LOG_PROB_COEF=0.01
+CORRECT_SAMPLE_LOG_PROB_COEF=-0.00
+INCORRECT_SAMPLE_LOG_PROB_COEF=0.00
 
 echo "job is starting on `hostname`"
 echo "Logging output to: $LOG_FILE"
