@@ -62,11 +62,10 @@ def default_compute_score(
          data_source.startswith("guanning-ai/mymaze"):
         res = compute_score_maze(extract_answer_maze(solution_str), ground_truth)
     elif data_source.startswith("guanning") or data_source == 'default':
+        from . import math_verify
         try:
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(math_verify.compute_score, solution_str, ground_truth)
-                res = future.result(timeout=60)  # 超过60秒将抛出TimeoutError
-        except (TimeoutException, concurrent.futures.TimeoutError):
+            res = math_verify.compute_score(solution_str, ground_truth)
+        except TimeoutException:
             res = 0.0
     elif data_source == "openai/gsm8k":
         from . import math_verify

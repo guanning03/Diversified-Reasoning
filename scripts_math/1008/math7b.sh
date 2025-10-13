@@ -1,17 +1,17 @@
-__conda_setup="$('/root/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/root/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "/root/miniconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/root/miniconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
+# __conda_setup="$('/root/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+# if [ $? -eq 0 ]; then
+#     eval "$__conda_setup"
+# else
+#     if [ -f "/root/miniconda3/etc/profile.d/conda.sh" ]; then
+#         . "/root/miniconda3/etc/profile.d/conda.sh"
+#     else
+#         export PATH="/root/miniconda3/bin:$PATH"
+#     fi
+# fi
+# unset __conda_setup
 
-conda init
-conda activate gai
+# conda init
+# conda activate gai
 
 CURRENT_TIME=$(date +%Y%m%d_%H%M%S)
 
@@ -21,9 +21,9 @@ mkdir -p logs
 # 设置日志文件路径
 LOG_FILE="logs/${CURRENT_TIME}.log"
 
-export CACHE=/root/cache/
+export CACHE=/home/ubuntu/cache/
 
-export HF_TOKEN=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
+export HF_TOKEN=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
 export WANDB_API_KEY="256879fdda25bc1fb8ee4f0310e71615e92f75c9"
 export WANDB_MODE=online
 # export WANDB_ENTITY="YOUR_ENTITY"
@@ -40,9 +40,9 @@ PASS_K=1
 LORA_RANK=0
 LORA_ALPHA=128
 LEARNING_RATE=1e-6
-DATA_SEED=0
-ROLLOUT_SEED=0
-MICRO_BATCH_SIZE=4
+DATA_SEED=3
+ROLLOUT_SEED=3
+MICRO_BATCH_SIZE=8
 TEMPERATURE=0.7
 VAL_TEMPERATURE=0.7
 SAVE_AND_TEST_INTERVAL=50
@@ -50,15 +50,12 @@ SAVE_AND_TEST_INTERVAL=50
 HF_USERNAME=guanning-ai
 
 ADVANTAGE_ESTIMATOR=grpo
-CORRECT_SAMPLE_LOG_PROB_COEF=-0.00
-INCORRECT_SAMPLE_LOG_PROB_COEF=0.00
+CORRECT_SAMPLE_LOG_PROB_COEF=-0.01
+INCORRECT_SAMPLE_LOG_PROB_COEF=0.01
 
 echo "job is starting on `hostname`"
 echo "Logging output to: $LOG_FILE"
 
-# 执行训练命令并将输出重定向到日志文件
-# 使用 tee 命令同时显示在终端和保存到文件
-# 2>&1 将标准错误重定向到标准输出
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  data.train_files=[$HOME/verl-data/math/train.parquet,$HOME/verl-data/dapo14k/train.parquet] \
  data.val_files=[$HOME/verl-data/math/test.parquet,$HOME/verl-data/olympiadbench/test.parquet,$HOME/verl-data/aime24/test.parquet,$HOME/verl-data/aime25/test.parquet,$HOME/verl-data/amc23/test.parquet] \
@@ -119,7 +116,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  trainer.max_actor_ckpt_to_keep=8 \
  trainer.test_freq=${SAVE_AND_TEST_INTERVAL} \
  trainer.logger=[console,wandb] \
- trainer.val_before_train=True \
+ trainer.val_before_train=False \
  trainer.project_name=gai-1008 \
  trainer.experiment_name=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF} \
  trainer.online_hf_name=${HF_USERNAME} \
