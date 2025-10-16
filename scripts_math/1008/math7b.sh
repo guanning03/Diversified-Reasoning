@@ -40,8 +40,8 @@ PASS_K=1
 LORA_RANK=0
 LORA_ALPHA=128
 LEARNING_RATE=1e-6
-DATA_SEED=3
-ROLLOUT_SEED=3
+DATA_SEED=9
+ROLLOUT_SEED=9
 MICRO_BATCH_SIZE=8
 TEMPERATURE=0.7
 VAL_TEMPERATURE=0.7
@@ -50,8 +50,8 @@ SAVE_AND_TEST_INTERVAL=50
 HF_USERNAME=guanning-ai
 
 ADVANTAGE_ESTIMATOR=grpo
-CORRECT_SAMPLE_LOG_PROB_COEF=-0.01
-INCORRECT_SAMPLE_LOG_PROB_COEF=0.01
+CORRECT_SAMPLE_LOG_PROB_COEF=-0.00
+INCORRECT_SAMPLE_LOG_PROB_COEF=0.00
 
 echo "job is starting on `hostname`"
 echo "Logging output to: $LOG_FILE"
@@ -118,7 +118,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  trainer.logger=[console,wandb] \
  trainer.val_before_train=False \
  trainer.project_name=gai-1008 \
- trainer.experiment_name=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF} \
+ trainer.experiment_name=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED} \
  trainer.online_hf_name=${HF_USERNAME} \
  trainer.total_epochs=6 \
  ray_init.temp_dir=$HOME/ray_tmp \

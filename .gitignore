@@ -137,3 +137,5 @@ core
 
 *.whl
 *.whl.1
+
+store/
