@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    data_source = "guanning/amc23"
+    data_source = "guanning-ai/dapo17k"
     
     if not args.local_dir:
         args.local_dir = os.path.join(os.environ["CACHE"], "verl-data", data_source.split("/")[-1])

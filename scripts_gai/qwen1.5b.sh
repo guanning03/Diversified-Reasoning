@@ -3,7 +3,7 @@
 #SBATCH --nodes=1                # 节点数
 #SBATCH --ntasks-per-node=1      # 每个节点的任务数
 #SBATCH --cpus-per-task=16       # 每个任务的 CPU 核心数
-#SBATCH --gres=gpu:8             # 需要 8 个 GPU
+#SBATCH --gres=gpu:4             # 需要 4 个 GPU
 #SBATCH --time=48:00:00          # 最大运行时间
 #SBATCH --mem=512G               # 内存大小
 #SBATCH --output=logs/%j.log     # 输出日志路径
@@ -19,11 +19,11 @@ export HYDRA_FULL_ERROR=1
 
 export HF_TOKEN=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
 export HUGGINGFACE_HUB_TOKEN=$HF_TOKEN
-HF_USERNAME=gaijingchu
+HF_USERNAME=guanning-ai
 
 unset ROCR_VISIBLE_DEVICES
 
-MODEL_NAME=Qwen/Qwen2.5-Math-7B
+MODEL_NAME=Qwen/Qwen2.5-Math-1.5B
 
 ROLLOUT_N=8
 PASS_K=1
@@ -31,8 +31,8 @@ PASS_K=1
 LORA_RANK=0
 LORA_ALPHA=128
 LEARNING_RATE=1e-6
-DATA_SEED=0
-ROLLOUT_SEED=0
+DATA_SEED=9
+ROLLOUT_SEED=9
 MICRO_BATCH_SIZE=4
 TEMPERATURE=0.7
 VAL_TEMPERATURE=0.7
@@ -44,7 +44,7 @@ INCORRECT_SAMPLE_LOG_PROB_COEF=0
 
 echo "job is starting on `hostname`"
 
-PROJECT_NAME=gai-exp-qwen7b
+PROJECT_NAME=gai-exp-qwen1.5b
 EXPERIMENT_NAME=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED}
 
 echo "Project name: $PROJECT_NAME"
@@ -70,7 +70,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
  actor_rollout_ref.actor.optim.lr=${LEARNING_RATE} \
  actor_rollout_ref.actor.clip_ratio_low=0.2 \
- actor_rollout_ref.actor.clip_ratio_high=0.2 \
+ actor_rollout_ref.actor.clip_ratio_high=0.25 \
  actor_rollout_ref.actor.loss_agg_mode=token-mean \
  actor_rollout_ref.actor.ppo_mini_batch_size=32 \
  actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${MICRO_BATCH_SIZE} \
@@ -104,7 +104,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  algorithm.kl_ctrl.kl_coef=0.000 \
  algorithm.correct_sample_log_prob_coef=${CORRECT_SAMPLE_LOG_PROB_COEF} \
  algorithm.incorrect_sample_log_prob_coef=${INCORRECT_SAMPLE_LOG_PROB_COEF} \
- trainer.n_gpus_per_node=8 \
+ trainer.n_gpus_per_node=4 \
  trainer.nnodes=1 \
  trainer.save_freq=$SAVE_AND_TEST_INTERVAL \
  trainer.max_actor_ckpt_to_keep=1 \

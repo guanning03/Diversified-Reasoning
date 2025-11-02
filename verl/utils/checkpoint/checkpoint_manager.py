@@ -253,7 +253,7 @@ class BaseCheckpointManager:
             api = HfApi()
             
             # Create repository if it doesn't exist
-            api.create_repo(repo_id=repo_id, exist_ok=True, private=True)
+            api.create_repo(repo_id=repo_id, exist_ok=True, private=False)
             
             # Upload folder
             api.upload_folder(

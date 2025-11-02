@@ -28,5 +28,5 @@ bash scripts_math/example_qwen7b.sh
 ## Useful slurm scripts for Babel
 
 ```bash
-srun -p debug --gres=gpu:1 --time=02:00:00 --mem=64G --cpus-per-task=16 --pty bash
+srun -p debug --gres=gpu:1 --time=02:00:00 --mem=64G --cpus-per-task=8 --pty bash
 ```

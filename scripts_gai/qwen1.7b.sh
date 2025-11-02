@@ -3,7 +3,7 @@
 #SBATCH --nodes=1                # 节点数
 #SBATCH --ntasks-per-node=1      # 每个节点的任务数
 #SBATCH --cpus-per-task=16       # 每个任务的 CPU 核心数
-#SBATCH --gres=gpu:8             # 需要 8 个 GPU
+#SBATCH --gres=gpu:8             # 需要 4 个 GPU
 #SBATCH --time=48:00:00          # 最大运行时间
 #SBATCH --mem=512G               # 内存大小
 #SBATCH --output=logs/%j.log     # 输出日志路径
@@ -19,43 +19,43 @@ export HYDRA_FULL_ERROR=1
 
 export HF_TOKEN=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
 export HUGGINGFACE_HUB_TOKEN=$HF_TOKEN
-HF_USERNAME=gaijingchu
+HF_USERNAME=guanning-ai
 
 unset ROCR_VISIBLE_DEVICES
 
-MODEL_NAME=Qwen/Qwen2.5-Math-7B
+MODEL_NAME=Qwen/Qwen3-1.7B
 
 ROLLOUT_N=8
 PASS_K=1
 
 LORA_RANK=0
 LORA_ALPHA=128
-LEARNING_RATE=1e-6
-DATA_SEED=0
-ROLLOUT_SEED=0
-MICRO_BATCH_SIZE=4
+LEARNING_RATE=5e-7
+DATA_SEED=9
+ROLLOUT_SEED=9
+MICRO_BATCH_SIZE=1
 TEMPERATURE=0.7
 VAL_TEMPERATURE=0.7
-SAVE_AND_TEST_INTERVAL=100
+SAVE_AND_TEST_INTERVAL=50
 
 ADVANTAGE_ESTIMATOR=grpo
-CORRECT_SAMPLE_LOG_PROB_COEF=0
-INCORRECT_SAMPLE_LOG_PROB_COEF=0
+CORRECT_SAMPLE_LOG_PROB_COEF=-0.02
+INCORRECT_SAMPLE_LOG_PROB_COEF=0.002
 
 echo "job is starting on `hostname`"
 
-PROJECT_NAME=gai-exp-qwen7b
+PROJECT_NAME=gai-exp-qwen1.7b
 EXPERIMENT_NAME=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED}
 
 echo "Project name: $PROJECT_NAME"
 echo "Experiment name: $EXPERIMENT_NAME"
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
- data.train_files=[$CACHE/verl-data/math/train.parquet,$CACHE/verl-data/dapo14k/train.parquet] \
+ data.train_files=[$CACHE/verl-data/dapo17k/train.parquet] \
  data.val_files=[$CACHE/verl-data/math/test.parquet,$CACHE/verl-data/amc23/test.parquet,$CACHE/verl-data/olympiadbench/test.parquet,$CACHE/verl-data/aime24/test.parquet,$CACHE/verl-data/aime25/test.parquet] \
- data.train_batch_size=32 \
+ data.train_batch_size=64 \
  data.max_prompt_length=1024 \
- data.max_response_length=2048 \
+ data.max_response_length=4096 \
  data.filter_overlong_prompts=True \
  data.chat_template_name=qwen-math \
  data.dataloader_num_workers=16 \
