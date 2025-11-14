@@ -323,6 +323,7 @@ class MegatronPPOActor(BasePPOActor):
         # broadcast from last pp rank to all other pp ranks
         # TODO: actually, we just need to control the sampling order.
         mini_batch = data
+        entropy_coeff = data.meta_info.get("entropy_coeff", self.config.entropy_coeff)
         broadcast_dict_tensor(
             mini_batch.batch,
             src=mpu.get_pipeline_model_parallel_last_rank(),
@@ -532,7 +533,7 @@ class MegatronPPOActor(BasePPOActor):
                 clip_ratio_c = self.config.get("clip_ratio_c", 3.0)
                 meta_info = {
                     "clip_ratio": self.config.clip_ratio,
-                    "entropy_coeff": self.config.entropy_coeff,
+                    "entropy_coeff": entropy_coeff,
                     "clip_ratio_c": clip_ratio_c,
                 }
             return output, partial(loss_func, data=batch, meta_info=meta_info)
@@ -597,7 +598,9 @@ class MegatronPPOActor(BasePPOActor):
                 # if use distributed optimizer, zero grad buffer will be handled by optimizer
                 chunk.zero_grad_buffer()
 
-            calculate_entropy = self.config.entropy_coeff != 0
+            entropy_coeff = data.meta_info.get("dynamic_entropy_coeff", self.config.entropy_coeff)
+            data.meta_info["entropy_coeff"] = entropy_coeff
+            calculate_entropy = entropy_coeff != 0
             if data.meta_info.get("micro_batch_size", None) is not None:
                 micro_batch_size = data.meta_info["micro_batch_size"]
             else:

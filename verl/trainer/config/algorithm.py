@@ -47,7 +47,11 @@ class FilterGroupsConfig(BaseConfig):
 
 @dataclass(frozen=True)
 class AlgoConfig(BaseConfig):
-    """Configuration for the algorithm."""
+    """Configuration for the algorithm.
+
+    alpha_pos and alpha_neg control the contribution of positive/negative Jingchu terms when
+    dynamically adjusting the actor entropy coefficient.
+    """
 
     gamma: float = 1.0  # Discount factor for future rewards
     lam: float = 1.0  # Trade-off between bias and variance in the GAE estimator
@@ -66,3 +70,5 @@ class AlgoConfig(BaseConfig):
 
     # Filter groups parameters (used in DAPO and Entropy)
     filter_groups: Optional[FilterGroupsConfig] = None  # Filter groups configuration
+    alpha_pos: float = 1.0
+    alpha_neg: float = 1.0

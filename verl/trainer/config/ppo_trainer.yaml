@@ -987,6 +987,12 @@ algorithm:
     # Power used for weight scaling in "pow" method
     weight_pow: 2.0
 
+  # Coefficient for positive sample Jingchu term in dynamic entropy calculation
+  alpha_pos: 1.0
+
+  # Coefficient for negative sample Jingchu term in dynamic entropy calculation
+  alpha_neg: 1.0
+
 # config for the trainer
 trainer:
 

@@ -1104,6 +1104,107 @@ class RayPPOTrainer:
         )
         metrics.update(global_balance_stats)
 
+    def _compute_jingchu_terms(self, batch: DataProto) -> dict:
+        """
+        Compute Jingchu metrics at both trajectory and token level.
+
+        Positive samples: trajectories with reward > 0.5
+        Negative samples: trajectories with reward <= 0.5
+        """
+        jingchu_metrics: dict[str, float] = {}
+
+        token_level_scores = batch.batch["token_level_scores"]
+        response_masks = batch.batch["response_mask"]
+        traj_reward = (token_level_scores * response_masks).sum(dim=-1)
+
+        traj_log_prob = batch.batch["traj_level_logprob"]
+
+        pos_mask = traj_reward > 0.5
+        neg_mask = ~pos_mask
+
+        if pos_mask.sum() > 0:
+            pos_traj_log_prob = traj_log_prob[pos_mask]
+            pos_traj_log_prob_centered = pos_traj_log_prob - pos_traj_log_prob.max()
+            pos_traj_log_prob_centered = torch.clamp(pos_traj_log_prob_centered, min=-20.0)
+            pos_traj_prob = torch.exp(pos_traj_log_prob_centered)
+            pos_jingchu_term = (pos_traj_prob * pos_traj_log_prob).sum() / pos_traj_prob.sum()
+            jingchu_metrics["Jingchu/traj_pos_jingchu_term"] = pos_jingchu_term.detach().item()
+            jingchu_metrics["Jingchu/num_pos_samples"] = pos_mask.sum().item()
+        else:
+            jingchu_metrics["Jingchu/traj_pos_jingchu_term"] = 0.0
+            jingchu_metrics["Jingchu/num_pos_samples"] = 0
+
+        if neg_mask.sum() > 0:
+            neg_traj_log_prob = traj_log_prob[neg_mask]
+            neg_traj_log_prob_centered = neg_traj_log_prob - neg_traj_log_prob.max()
+            neg_traj_log_prob_centered = torch.clamp(neg_traj_log_prob_centered, min=-20.0)
+            neg_traj_prob = torch.exp(neg_traj_log_prob_centered)
+            neg_jingchu_term = (neg_traj_prob * neg_traj_log_prob).sum() / neg_traj_prob.sum()
+            jingchu_metrics["Jingchu/traj_neg_jingchu_term"] = neg_jingchu_term.detach().item()
+            jingchu_metrics["Jingchu/num_neg_samples"] = neg_mask.sum().item()
+        else:
+            jingchu_metrics["Jingchu/traj_neg_jingchu_term"] = 0.0
+            jingchu_metrics["Jingchu/num_neg_samples"] = 0
+
+        jingchu_metrics["Jingchu/traj_reward_mean"] = traj_reward.mean().detach().item()
+        jingchu_metrics["Jingchu/traj_reward_std"] = traj_reward.std().detach().item()
+
+        token_log_probs = batch.batch["old_log_probs"]
+
+        if pos_mask.sum() > 0:
+            pos_token_log_probs = token_log_probs[pos_mask]
+            pos_response_mask = response_masks[pos_mask]
+            valid_pos_log_probs = torch.masked_select(pos_token_log_probs, pos_response_mask.bool())
+            if valid_pos_log_probs.numel() > 0:
+                valid_pos_log_probs_centered = valid_pos_log_probs - valid_pos_log_probs.mean()
+                valid_pos_token_prob = torch.exp(valid_pos_log_probs_centered)
+                token_pos_jingchu_term = (valid_pos_token_prob * valid_pos_log_probs).sum() / valid_pos_token_prob.sum()
+                jingchu_metrics["Jingchu/token_pos_jingchu_term"] = token_pos_jingchu_term.detach().item()
+                jingchu_metrics["Jingchu/num_pos_tokens"] = valid_pos_log_probs.numel()
+            else:
+                jingchu_metrics["Jingchu/token_pos_jingchu_term"] = 0.0
+                jingchu_metrics["Jingchu/num_pos_tokens"] = 0
+        else:
+            jingchu_metrics["Jingchu/token_pos_jingchu_term"] = 0.0
+            jingchu_metrics["Jingchu/num_pos_tokens"] = 0
+
+        if neg_mask.sum() > 0:
+            neg_token_log_probs = token_log_probs[neg_mask]
+            neg_response_mask = response_masks[neg_mask]
+            valid_neg_log_probs = torch.masked_select(neg_token_log_probs, neg_response_mask.bool())
+            if valid_neg_log_probs.numel() > 0:
+                valid_neg_log_probs_centered = valid_neg_log_probs - valid_neg_log_probs.mean()
+                valid_neg_token_prob = torch.exp(valid_neg_log_probs_centered)
+                token_neg_jingchu_term = (valid_neg_token_prob * valid_neg_log_probs).sum() / valid_neg_token_prob.sum()
+                jingchu_metrics["Jingchu/token_neg_jingchu_term"] = token_neg_jingchu_term.detach().item()
+                jingchu_metrics["Jingchu/num_neg_tokens"] = valid_neg_log_probs.numel()
+            else:
+                jingchu_metrics["Jingchu/token_neg_jingchu_term"] = 0.0
+                jingchu_metrics["Jingchu/num_neg_tokens"] = 0
+        else:
+            jingchu_metrics["Jingchu/token_neg_jingchu_term"] = 0.0
+            jingchu_metrics["Jingchu/num_neg_tokens"] = 0
+
+        if (
+            "Jingchu/traj_pos_jingchu_term" in jingchu_metrics
+            and "Jingchu/traj_neg_jingchu_term" in jingchu_metrics
+        ):
+            traj_diff = (
+                jingchu_metrics["Jingchu/traj_pos_jingchu_term"] - jingchu_metrics["Jingchu/traj_neg_jingchu_term"]
+            )
+            jingchu_metrics["Jingchu/traj_pos_minus_neg_jingchu_term"] = traj_diff
+
+        if (
+            "Jingchu/token_pos_jingchu_term" in jingchu_metrics
+            and "Jingchu/token_neg_jingchu_term" in jingchu_metrics
+        ):
+            token_diff = (
+                jingchu_metrics["Jingchu/token_pos_jingchu_term"] - jingchu_metrics["Jingchu/token_neg_jingchu_term"]
+            )
+            jingchu_metrics["Jingchu/token_pos_minus_neg_jingchu_term"] = token_diff
+
+        return jingchu_metrics
+
     def fit(self):
         """
         The training loop of PPO.
@@ -1277,9 +1378,22 @@ class RayPPOTrainer:
                         loss_agg_mode = self.config.actor_rollout_ref.actor.loss_agg_mode
                         entropy_agg = agg_loss(loss_mat=entropys, loss_mask=response_masks, loss_agg_mode=loss_agg_mode)
                         old_log_prob_metrics = {"actor/entropy": entropy_agg.detach().item()}
-                        metrics.update(old_log_prob_metrics)
                         old_log_prob.batch.pop("entropys")
                         batch = batch.union(old_log_prob)
+
+                        token_log_probs = batch.batch["old_log_probs"]
+                        traj_level_logprob = (token_log_probs * response_masks).sum(dim=-1)
+                        batch.batch["traj_level_logprob"] = traj_level_logprob
+                        old_log_prob_metrics.update(
+                            {
+                                "Jingchu/traj_logprob_mean": traj_level_logprob.mean().detach().item(),
+                                "Jingchu/traj_logprob_std": traj_level_logprob.std().detach().item(),
+                                "Jingchu/traj_logprob_min": traj_level_logprob.min().detach().item(),
+                                "Jingchu/traj_logprob_max": traj_level_logprob.max().detach().item(),
+                            }
+                        )
+
+                        metrics.update(old_log_prob_metrics)
 
                         if "rollout_log_probs" in batch.batch.keys():
                             # TODO: we may want to add diff of probs too.
@@ -1321,6 +1435,7 @@ class RayPPOTrainer:
                             batch = batch.union(values)
 
                     skip_step = False
+                    jingchu_metrics: dict[str, float] = {}
                     with marked_timer("adv", timing_raw, color="brown"):
                         # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
@@ -1339,6 +1454,9 @@ class RayPPOTrainer:
                             metrics.update(kl_metrics)
                         else:
                             batch.batch["token_level_rewards"] = batch.batch["token_level_scores"]
+
+                        jingchu_metrics = self._compute_jingchu_terms(batch)
+                        metrics.update(jingchu_metrics)
 
                         # compute advantages, executed on the driver process
 
@@ -1377,7 +1495,15 @@ class RayPPOTrainer:
 
                     # implement critic warmup
                     if not skip_step and self.config.trainer.critic_warmup <= self.global_steps:
-                    # update actor
+                        alpha_pos = self.config.algorithm.get("alpha_pos", 1.0)
+                        alpha_neg = self.config.algorithm.get("alpha_neg", 1.0)
+                        if alpha_pos != 0 or alpha_neg != 0:
+                            token_pos_jingchu_term = jingchu_metrics.get("Jingchu/token_pos_jingchu_term", 0.0)
+                            token_neg_jingchu_term = jingchu_metrics.get("Jingchu/token_neg_jingchu_term", 0.0)
+                            dynamic_entropy_coeff = -alpha_pos * token_pos_jingchu_term + alpha_neg * token_neg_jingchu_term
+                            dynamic_entropy_coeff = float(dynamic_entropy_coeff)
+                            batch.meta_info["dynamic_entropy_coeff"] = dynamic_entropy_coeff
+                            metrics["Jingchu/dynamic_entropy_coeff"] = dynamic_entropy_coeff
                         with marked_timer("update_actor", timing_raw, color="red"):
                             batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
                             actor_output = self.actor_rollout_wg.update_actor(batch)

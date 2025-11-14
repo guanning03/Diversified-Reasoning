@@ -351,27 +351,17 @@ def compute_grpo_outcome_advantage(
             pass_at_k_objectives[key] = expanded
 
         advantage = advantage_vec.unsqueeze(-1) * response_mask
-        
-        # ### Apply Reward Reweighting
-        # scores = scores.unsqueeze(-1) 
-        # correct_mask = (scores > 0) * response_mask
-        # incorrect_mask = (scores == 0) * response_mask
-        # if config.correct_sample_log_prob_coef:
-        #     advantage = advantage + config.correct_sample_log_prob_coef * correct_mask * old_log_probs
-        # if config.incorrect_sample_log_prob_coef:
-        #     advantage = advantage + config.incorrect_sample_log_prob_coef * incorrect_mask * old_log_probs
 
-        ### Apply Reward Reweighting  —— 序列级对齐论文，避免长度偏置
         scores = scores.unsqueeze(-1) 
-        # 1) 计算序列级 log 概率（平均），并且不参与梯度
         token_counts = response_mask.sum(dim=-1).clamp_min(1.0)                               # (bs,)
         seq_logp_mean = ((old_log_probs * response_mask).sum(dim=-1) / token_counts).detach() # (bs,)
 
-        # 2) 序列级增量（样本级标量），按论文：正样本 -γ_p·logp，负样本 +γ_n·logp
         delta_seq = torch.zeros_like(seq_logp_mean)
         if getattr(config, "correct_sample_log_prob_coef", 0.0):
+            # 正确轨迹加 -γ_p·logp
             delta_seq = delta_seq + (-config.correct_sample_log_prob_coef) * (scores.squeeze(-1) > 0).float() * seq_logp_mean
         if getattr(config, "incorrect_sample_log_prob_coef", 0.0):
+            # 错误轨迹加 +γ_n·logp
             delta_seq = delta_seq + ( config.incorrect_sample_log_prob_coef) * (scores.squeeze(-1) == 0).float() * seq_logp_mean
 
         # 3) 将样本级增量均匀摊到 token（mask 归一化，每条序列总增量=delta_seq）

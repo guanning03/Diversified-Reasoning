@@ -39,20 +39,22 @@ VAL_TEMPERATURE=0.7
 SAVE_AND_TEST_INTERVAL=100
 
 ADVANTAGE_ESTIMATOR=grpo
-CORRECT_SAMPLE_LOG_PROB_COEF=0
-INCORRECT_SAMPLE_LOG_PROB_COEF=0
+GAMMA_P=0.01
+GAMMA_N=0.01
+ALPHA_POS=0.0
+ALPHA_NEG=0.0
 
 echo "job is starting on `hostname`"
 
-PROJECT_NAME=gai-exp-qwen1.5b
-EXPERIMENT_NAME=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${CORRECT_SAMPLE_LOG_PROB_COEF}_n${INCORRECT_SAMPLE_LOG_PROB_COEF}_seed${DATA_SEED}
+PROJECT_NAME=debug-1114
+EXPERIMENT_NAME=${ADVANTAGE_ESTIMATOR}_n${ROLLOUT_N}_k${PASS_K}_p${GAMMA_P}_n${GAMMA_N}_seed${DATA_SEED}
 
 echo "Project name: $PROJECT_NAME"
 echo "Experiment name: $EXPERIMENT_NAME"
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  data.train_files=[$CACHE/verl-data/math/train.parquet,$CACHE/verl-data/dapo14k/train.parquet] \
- data.val_files=[$CACHE/verl-data/math/test.parquet,$CACHE/verl-data/amc23/test.parquet,$CACHE/verl-data/olympiadbench/test.parquet,$CACHE/verl-data/aime24/test.parquet,$CACHE/verl-data/aime25/test.parquet] \
+ data.val_files=[$CACHE/verl-data/aime24/test.parquet,$CACHE/verl-data/aime25/test.parquet] \
  data.train_batch_size=32 \
  data.max_prompt_length=1024 \
  data.max_response_length=2048 \
@@ -102,15 +104,17 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
  algorithm.pass_k=${PASS_K} \
  algorithm.use_kl_in_reward=False \
  algorithm.kl_ctrl.kl_coef=0.000 \
- algorithm.correct_sample_log_prob_coef=${CORRECT_SAMPLE_LOG_PROB_COEF} \
- algorithm.incorrect_sample_log_prob_coef=${INCORRECT_SAMPLE_LOG_PROB_COEF} \
+ algorithm.correct_sample_log_prob_coef=${GAMMA_P} \
+ algorithm.incorrect_sample_log_prob_coef=${GAMMA_N} \
+ algorithm.alpha_pos=${ALPHA_POS} \
+ algorithm.alpha_neg=${ALPHA_NEG} \
  trainer.n_gpus_per_node=4 \
  trainer.nnodes=1 \
  trainer.save_freq=$SAVE_AND_TEST_INTERVAL \
  trainer.max_actor_ckpt_to_keep=1 \
  trainer.test_freq=$SAVE_AND_TEST_INTERVAL \
  trainer.logger=[console,wandb] \
- trainer.val_before_train=True \
+ trainer.val_before_train=False \
  trainer.default_local_dir=$CACHE/verl-checkpoints/$PROJECT_NAME/$EXPERIMENT_NAME \
  trainer.project_name=$PROJECT_NAME \
  trainer.experiment_name=$EXPERIMENT_NAME \

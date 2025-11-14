@@ -384,6 +384,7 @@ class DataParallelPPOActor(BasePPOActor):
         self.actor_module.train()
 
         temperature = data.meta_info["temperature"]  # temperature must be in the data.meta_info to avoid silent error
+        entropy_coeff_override = data.meta_info.get("dynamic_entropy_coeff", self.config.entropy_coeff)
 
         select_keys = [
             "responses",
@@ -481,7 +482,7 @@ class DataParallelPPOActor(BasePPOActor):
                         self.config.clip_ratio_high if self.config.clip_ratio_high is not None else clip_ratio
                     )
                     clip_ratio_c = self.config.get("clip_ratio_c", 3.0)
-                    entropy_coeff = self.config.entropy_coeff
+                    entropy_coeff = entropy_coeff_override
                     loss_agg_mode = self.config.loss_agg_mode
 
                     # all return: (bsz, response_length)
