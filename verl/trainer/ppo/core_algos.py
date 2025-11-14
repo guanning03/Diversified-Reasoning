@@ -316,6 +316,24 @@ def compute_grpo_outcome_advantage(
     # 每条响应的 outcome 分数: (bs,)
     scores = token_level_rewards.sum(dim=-1)
     old_log_probs = kwargs["old_log_probs"]
+    
+    # TinyZero-style: 在计算 advantage 之前调整 scores
+    # 计算序列级别的平均 log_prob
+    token_counts = response_mask.sum(dim=-1).clamp_min(1.0)  # (bs,)
+    reward_log_probs = ((old_log_probs * response_mask).sum(dim=-1) / token_counts).detach()  # (bs,)
+    
+    # 根据 correct/incorrect 系数调整 scores
+    correct_sample_log_prob_coef = getattr(config, "correct_sample_log_prob_coef", 0.0)
+    incorrect_sample_log_prob_coef = getattr(config, "incorrect_sample_log_prob_coef", 0.0)
+    
+    if correct_sample_log_prob_coef != 0.0 or incorrect_sample_log_prob_coef != 0.0:
+        is_correct = (scores > 0).float()
+        is_incorrect = (scores == 0).float()
+        
+        # 正确样本：减去 coef * log_prob（降低高概率正确样本的 reward）
+        # 错误样本：加上 coef * log_prob（增加对低概率错误样本的惩罚)
+        scores = scores - correct_sample_log_prob_coef * is_correct * reward_log_probs
+        scores = scores + incorrect_sample_log_prob_coef * is_incorrect * reward_log_probs
 
     with torch.no_grad():
         bsz = scores.shape[0]
@@ -337,10 +355,11 @@ def compute_grpo_outcome_advantage(
             group_std  = P.std(dim=1, keepdim=True, unbiased=False)
 
         centered = P - group_mean
-        if norm_adv_by_std_in_grpo:
-            group_adv = centered / (group_std + epsilon)
-        else:
-            group_adv = centered
+        # if norm_adv_by_std_in_grpo:
+        #     group_adv = centered / (group_std + epsilon)
+        # else:
+        #     group_adv = centered
+        group_adv = centered
 
         advantage_vec = rearrange(group_adv, "n m -> (n m)")
 
@@ -351,22 +370,6 @@ def compute_grpo_outcome_advantage(
             pass_at_k_objectives[key] = expanded
 
         advantage = advantage_vec.unsqueeze(-1) * response_mask
-
-        scores = scores.unsqueeze(-1) 
-        token_counts = response_mask.sum(dim=-1).clamp_min(1.0)                               # (bs,)
-        seq_logp_mean = ((old_log_probs * response_mask).sum(dim=-1) / token_counts).detach() # (bs,)
-
-        delta_seq = torch.zeros_like(seq_logp_mean)
-        if getattr(config, "correct_sample_log_prob_coef", 0.0):
-            # 正确轨迹加 -γ_p·logp
-            delta_seq = delta_seq + (-config.correct_sample_log_prob_coef) * (scores.squeeze(-1) > 0).float() * seq_logp_mean
-        if getattr(config, "incorrect_sample_log_prob_coef", 0.0):
-            # 错误轨迹加 +γ_n·logp
-            delta_seq = delta_seq + ( config.incorrect_sample_log_prob_coef) * (scores.squeeze(-1) == 0).float() * seq_logp_mean
-
-        # 3) 将样本级增量均匀摊到 token（mask 归一化，每条序列总增量=delta_seq）
-        per_token_weight = response_mask / token_counts.unsqueeze(-1)                         # (bs, T)，每条序列内求和=1
-        advantage = advantage + delta_seq.unsqueeze(-1) * per_token_weight
         
     return advantage, advantage, pass_at_k_objectives
 
